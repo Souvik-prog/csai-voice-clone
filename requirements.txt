@@ -1,0 +1,8 @@
+requests
+python-dotenv
+fastapi
+uvicorn[standard]
+boto3
+SQLAlchemy
+python-multipart
+psycopg2-binary
