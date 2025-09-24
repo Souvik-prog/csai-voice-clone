@@ -1,33 +1,23 @@
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import List
 
-# --- Request Models ---
-
-# ... existing TuneSettingsRequest and GenerateSpeechRequest ...
-class TuneSettingsRequest(BaseModel):
-    stability: float = Field(0.7, ge=0, le=1, description="Stability of the voice.")
-    similarity_boost: float = Field(0.8, ge=0, le=1, description="Similarity boost for the voice.")
-
-class GenerateSpeechRequest(BaseModel):
-    voice_id: str = Field(..., description="The ID of the voice to use for generation.")
-    text: str = Field(..., min_length=1, description="The text to be converted to speech.")
-
-
-# --- Response Models ---
-
-class VoiceCloneResponse(BaseModel):
-    message: str
+class VoiceResponse(BaseModel):
+    id: int
     voice_id: str
+    name: str
     sample_s3_url: str
-    db_record_id: int
 
-class CloneAndSpeakResponse(BaseModel):
+    class Config:
+        from_attributes = True
+
+class SpeakRequest(BaseModel):
+    voice_id: str
+    text: str
+
+class SpeakResponse(BaseModel):
     message: str
-    cloned_voice_record_id: int
-    generated_speech_record_id: int
-    elevenlabs_voice_id: str
-    voice_sample_s3_url: str
     generated_speech_s3_url: str
+    record_id: int
 
 class TuneSettingsRequest(BaseModel):
     stability: float = Field(0.7, ge=0, le=1)
@@ -38,9 +28,11 @@ class TuneSettingsResponse(BaseModel):
     voice_id: str
     settings: TuneSettingsRequest
 
-
-class GenerateSpeechResponse(BaseModel):
+class CloneAndSpeakResponse(BaseModel):
     message: str
-    s3_url: str
-    db_record_id: int
+    cloned_voice_record_id: int
+    generated_speech_record_id: int
+    elevenlabs_voice_id: str
+    voice_sample_s3_url: str
+    generated_speech_s3_url: str
 

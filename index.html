@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Generation Frontend</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .loader {
+            border-top-color: #3498db;
+            -webkit-animation: spin 1s linear infinite;
+            animation: spin 1s linear infinite;
+        }
+        @-webkit-keyframes spin {
+            0% { -webkit-transform: rotate(0deg); }
+            100% { -webkit-transform: rotate(360deg); }
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .tab-active {
+            color: #2563eb; /* text-blue-600 */
+            border-bottom-width: 2px;
+            border-color: #2563eb; /* border-blue-600 */
+        }
+        .tab-inactive {
+            color: #6b7280; /* text-gray-500 */
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+    <div class="w-full max-w-2xl bg-white rounded-xl shadow-lg p-8 space-y-6">
+        <header>
+            <h1 class="text-3xl font-bold text-gray-800 text-center">Voice Generation Agent</h1>
+            <p class="text-center text-gray-500 mt-2">Generate speech using a saved voice or upload a new one.</p>
+        </header>
+
+        <!-- Mode Selector Tabs -->
+        <div class="flex justify-center space-x-4 border-b">
+            <button id="mode-select-existing" class="py-2 px-4 font-medium transition-colors duration-200 tab-active">Use Existing Voice</button>
+            <button id="mode-upload-new" class="py-2 px-4 font-medium transition-colors duration-200 tab-inactive">Upload New Voice</button>
+        </div>
+
+        <!-- Main Form -->
+        <form id="speech-form" class="space-y-6">
+            
+            <!-- Container for Existing Voice Mode -->
+            <div id="existing-voice-container">
+                <div>
+                    <label for="voice-select" class="block text-sm font-medium text-gray-700 mb-2">Select a Voice</label>
+                    <select id="voice-select" name="voice" class="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+                        <option value="">Loading voices...</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Container for New Voice Mode (initially hidden) -->
+            <div id="new-voice-container" class="hidden space-y-4">
+                <div>
+                    <label for="new-voice-name" class="block text-sm font-medium text-gray-700 mb-2">New Voice Name</label>
+                    <input type="text" id="new-voice-name" class="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition" placeholder="e.g., Morgan's Voice">
+                </div>
+                <div>
+                    <label for="voice-file-input" class="block text-sm font-medium text-gray-700 mb-2">Voice Sample File (.mp3, .wav)</label>
+                    <input type="file" id="voice-file-input" accept="audio/mpeg, audio/wav" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                </div>
+            </div>
+
+            <!-- Shared Input: Script -->
+            <div>
+                <label for="script-input" class="block text-sm font-medium text-gray-700 mb-2">Input Script</label>
+                <textarea id="script-input" name="script" rows="6" class="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition" placeholder="Type what you want the agent to say..."></textarea>
+            </div>
+            
+            <div class="flex items-center justify-center">
+                <button type="submit" id="generate-btn" class="w-full flex items-center justify-center bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-200">
+                    <span id="btn-text">Generate Speech</span>
+                    <div id="loader" class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-6 w-6 ml-3 hidden"></div>
+                </button>
+            </div>
+        </form>
+
+        <!-- Error message display -->
+        <div id="error-message" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg" role="alert">
+            <strong class="font-bold">Error:</strong>
+            <span class="block sm:inline" id="error-text"></span>
+        </div>
+
+        <!-- Results section -->
+        <div id="results-section" class="hidden space-y-4 pt-6 border-t">
+            <h2 class="text-xl font-semibold text-gray-800">Generated Speech</h2>
+            <audio id="audio-player" controls class="w-full"></audio>
+            <a id="download-link" href="#" download="generated_speech.mp3" class="inline-block w-full text-center bg-green-500 text-white font-semibold py-3 px-6 rounded-lg hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition duration-200">
+                Download Audio
+            </a>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Element Refs
+            const speechForm = document.getElementById('speech-form');
+            const generateBtn = document.getElementById('generate-btn');
+            const btnText = document.getElementById('btn-text');
+            const loader = document.getElementById('loader');
+            
+            const errorMessage = document.getElementById('error-message');
+            const errorText = document.getElementById('error-text');
+            
+            const resultsSection = document.getElementById('results-section');
+            const audioPlayer = document.getElementById('audio-player');
+            const downloadLink = document.getElementById('download-link');
+            
+            // Mode Switching Refs
+            const modeSelectExistingBtn = document.getElementById('mode-select-existing');
+            const modeUploadNewBtn = document.getElementById('mode-upload-new');
+            const existingVoiceContainer = document.getElementById('existing-voice-container');
+            const newVoiceContainer = document.getElementById('new-voice-container');
+            
+            // Form Input Refs
+            const voiceSelect = document.getElementById('voice-select');
+            const scriptInput = document.getElementById('script-input');
+            const newVoiceNameInput = document.getElementById('new-voice-name');
+            const voiceFileInput = document.getElementById('voice-file-input');
+            
+            let currentMode = 'existing'; // 'existing' or 'new'
+            const API_BASE_URL = 'http://127.0.0.1:3008';
+
+            // --- Mode Switching Logic ---
+            function switchMode(mode) {
+                currentMode = mode;
+                hideError();
+                if (mode === 'existing') {
+                    modeSelectExistingBtn.classList.add('tab-active');
+                    modeSelectExistingBtn.classList.remove('tab-inactive');
+                    modeUploadNewBtn.classList.remove('tab-active');
+                    modeUploadNewBtn.classList.add('tab-inactive');
+                    
+                    existingVoiceContainer.classList.remove('hidden');
+                    newVoiceContainer.classList.add('hidden');
+                } else { // mode === 'new'
+                    modeUploadNewBtn.classList.add('tab-active');
+                    modeUploadNewBtn.classList.remove('tab-inactive');
+                    modeSelectExistingBtn.classList.remove('tab-active');
+                    modeSelectExistingBtn.classList.add('tab-inactive');
+
+                    newVoiceContainer.classList.remove('hidden');
+                    existingVoiceContainer.classList.add('hidden');
+                }
+            }
+            modeSelectExistingBtn.addEventListener('click', () => switchMode('existing'));
+            modeUploadNewBtn.addEventListener('click', () => switchMode('new'));
+
+            // --- API Logic ---
+            async function fetchVoices() {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/voices/`);
+                    if (!response.ok) throw new Error('Failed to fetch voices from the server.');
+                    const voices = await response.json();
+
+                    voiceSelect.innerHTML = '<option value="">-- Please select a voice --</option>'; 
+                    if (voices.length > 0) {
+                        voices.forEach(voice => {
+                            const option = new Option(`${voice.name} (ID: ...${voice.voice_id.slice(-4)})`, voice.voice_id);
+                            voiceSelect.add(option);
+                        });
+                    } else {
+                       voiceSelect.innerHTML = '<option value="">-- No voices found --</option>';
+                    }
+                } catch (err) {
+                    console.error('Error fetching voices:', err);
+                    showError(err.message);
+                }
+            }
+            
+            // --- Form Submission Handler ---
+            speechForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                hideError();
+                resultsSection.classList.add('hidden');
+                
+                const scriptText = scriptInput.value;
+                if (!scriptText.trim()) {
+                    showError('Please enter a script for the voice to say.');
+                    return;
+                }
+
+                setLoading(true);
+
+                if (currentMode === 'existing') {
+                    await handleExistingVoice(scriptText);
+                } else {
+                    await handleNewVoice(scriptText);
+                }
+
+                setLoading(false);
+            });
+
+            // --- Handlers for each mode ---
+            async function handleExistingVoice(text) {
+                const selectedVoiceId = voiceSelect.value;
+                if (!selectedVoiceId) {
+                    showError('Please select a voice from the dropdown.');
+                    return;
+                }
+                
+                try {
+                    const response = await fetch(`${API_BASE_URL}/speak/`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ voice_id: selectedVoiceId, text: text }),
+                    });
+                    if (!response.ok) {
+                        const errData = await response.json();
+                        throw new Error(errData.detail || 'API error');
+                    }
+                    const result = await response.json();
+                    displayResults(result.generated_speech_s3_url);
+                } catch (err) {
+                    showError(err.message);
+                }
+            }
+
+            async function handleNewVoice(text) {
+                const voiceName = newVoiceNameInput.value;
+                const voiceFile = voiceFileInput.files[0];
+
+                if (!voiceName.trim()) {
+                    showError('Please provide a name for the new voice.');
+                    return;
+                }
+                if (!voiceFile) {
+                    showError('Please select a voice sample file to upload.');
+                    return;
+                }
+
+                const formData = new FormData();
+                formData.append('voice_name', voiceName);
+                formData.append('text_to_speak', text);
+                formData.append('file', voiceFile);
+                
+                try {
+                    const response = await fetch(`${API_BASE_URL}/clone-and-speak/`, {
+                        method: 'POST',
+                        body: formData, // No Content-Type header needed; browser sets it
+                    });
+                    if (!response.ok) {
+                        const errData = await response.json();
+                        throw new Error(errData.detail || 'API error');
+                    }
+                    const result = await response.json();
+                    displayResults(result.generated_speech_s3_url);
+                    
+                    // Refresh the voice list to include the new one
+                    await fetchVoices();
+                    
+                } catch (err) {
+                    showError(err.message);
+                }
+            }
+            
+            // --- UI Helper Functions ---
+            function displayResults(s3_url) {
+                audioPlayer.src = s3_url;
+                downloadLink.href = s3_url;
+                resultsSection.classList.remove('hidden');
+            }
+
+            function setLoading(isLoading) {
+                generateBtn.disabled = isLoading;
+                btnText.textContent = isLoading ? 'Generating...' : 'Generate Speech';
+                loader.classList.toggle('hidden', !isLoading);
+            }
+
+            function showError(message) {
+                errorText.textContent = message;
+                errorMessage.classList.remove('hidden');
+            }
+
+            function hideError() {
+                errorMessage.classList.add('hidden');
+            }
+
+            // Initial call to load voices when the page is ready
+            fetchVoices();
+        });
+    </script>
+</body>
+</html>
+
